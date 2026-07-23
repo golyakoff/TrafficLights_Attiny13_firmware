@@ -1,0 +1,11 @@
+# Explicit line-ending policy for this repo, so Git doesn't rely on each
+# clone's core.autocrlf (this machine's is set system-wide to "input").
+* text=auto eol=lf
+
+# Windows batch scripts must stay CRLF regardless of platform.
+*.bat text eol=crlf
+
+# Build artifacts: never touch as text (no line-ending conversion, no text diff).
+*.hex binary
+*.elf binary
+*.o binary
