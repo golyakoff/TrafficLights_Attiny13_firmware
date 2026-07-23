@@ -24,20 +24,20 @@
 
 #define MAX_GLOBAL_TIMER_VALUE	(USHRT_MAX / 2)		// uint16_t globalTimer - защита от переполнения. 65535 /2 
 // любой период должен быть меньше, чем MAX_GLOBAL_TIMER_VALUE - 1
-#define PERIOD_PRESS_BUTTON_SHORT	QT_SECOND/2			// Длительность короткого нажатия на кнопку (меньше - дребезг) - переключение состояний
-#define PERIOD_PRESS_BUTTON_LONG	QT_SECOND*4			// Длительность долгого нажатия на кнопку - включение/выключение
-#define PERIOD_FLASH_GREEN			QT_SECOND			// период мигания зеленым цветом (четверть сек) - перед переключением в желтый
-#define PERIOD_FLASH_YELLOW			ONE_SECOND * 1		// период мигания желтым цветом - регулировка светофором отключена - секунды
+#define PERIOD_PRESS_BUTTON_SHORT	QT_SECOND  / 2		// Длительность короткого нажатия на кнопку (меньше - дребезг) - переключение состояний
+#define PERIOD_PRESS_BUTTON_LONG	QT_SECOND  * 4		// Длительность долгого нажатия на кнопку - включение/выключение
+#define PERIOD_FLASH_GREEN			QT_SECOND  * 2		// период мигания зеленым цветом (четверть сек) - перед переключением в желтый
+#define PERIOD_FLASH_YELLOW			ONE_SECOND * 2		// период мигания желтым цветом - регулировка светофором отключена - секунды
 
 											// север --- восток
-#define PERIOD_0		ONE_SECOND * 5		// R G R G	0. красный --- зеленый	(15 сек)
-#define PERIOD_1		ONE_SECOND * 3		//R g R g	1. красный --- зеленый мигающий (3 сек)		
-#define PERIOD_2		ONE_SECOND * 1		//R Y R Y	2. красный --- желтый (1 сек)
-#define PERIOD_3		ONE_SECOND * 2		//RY Y RY Y	3. красн+желтый --- желтый (2 сек) 
-#define PERIOD_4		ONE_SECOND * 7		// G R G R	4. зеленый --- красный	(10 сек)
-#define PERIOD_5		ONE_SECOND * 3		//g R g R	5. зеленый мигающий --- красный(3 сек)
-#define PERIOD_6		ONE_SECOND * 1		//Y R Y R	6. желтый --- красный (1сек)
-#define PERIOD_7		ONE_SECOND * 2		//Y RY Y RY	7. желтый --- красный+желтый (2сек)
+#define PERIOD_0		ONE_SECOND * 15		// R G R G	0. красный --- зеленый	(15 сек)
+#define PERIOD_1		ONE_SECOND * 5		//R g R g	1. красный --- зеленый мигающий (5 сек)
+#define PERIOD_2		ONE_SECOND * 2		//R Y R Y	2. красный --- желтый (2 сек)
+#define PERIOD_3		ONE_SECOND * 3		//RY Y RY Y	3. красн+желтый --- желтый (3 сек)
+#define PERIOD_4		ONE_SECOND * 10		// G R G R	4. зеленый --- красный	(10 сек)
+#define PERIOD_5		ONE_SECOND * 5		//g R g R	5. зеленый мигающий --- красный(5 сек)
+#define PERIOD_6		ONE_SECOND * 2		//Y R Y R	6. желтый --- красный (2сек)
+#define PERIOD_7		ONE_SECOND * 3		//Y RY Y RY	7. желтый --- красный+желтый (3сек)
 
 //структура одного режима/состояния световой сигнализации. Может иметь второе значение - как быдет выглядеть при мигании
 typedef struct{
@@ -77,21 +77,19 @@ typedef struct{
 //.................................... ГЛОБАЛЬНЫЕ переменные
 // 
 const lightSignalization traffic_signals[] PROGMEM= {	// Порядок чередования сигналов, значения константные, хранятся во флеш-памяти, PINS === 0 0 0 g r y0 btt y1
- // {DDRB0, PORTB0,   DDRB_flashing, PORTB_flasinf (if flashing),   continous of half-period flashing,   continous id mode runing}
-	{RED|GREEN, RED,   0, 0,   0, PERIOD_0},					// R G R G
-	{RED, RED,  RED|GREEN, RED,   QT_SECOND, PERIOD_1},			// R g R g - flash east green
-	{RED|YELL1, RED|YELL1,   0, 0,   0, PERIOD_2 },				// R Y1 R Y1
-	{RED|YELL0|YELL1, RED|YELL0|YELL1,  0, 0,   0, PERIOD_3 },	// RY0 Y1 RY0 Y1
-	{RED|GREEN, GREEN,   0, 0,   0, PERIOD_4},					// G R G R
-	{RED|GREEN, GREEN,   RED, 0,    QT_SECOND, PERIOD_5 },		// g R g R - flash nord green
-	{RED|YELL0, YELL0,   0, 0,   0, PERIOD_6},					// Y0 R Y0 R
-	{RED|YELL0|YELL1,  YELL0|YELL1,   0, 0,   0, PERIOD_7  },	// Y0 RY1 Y0 RY1
-
-	{YELL0|YELL1, YELL0|YELL1,   YELL0|YELL1, 0,  ONE_SECOND, 0},	// y0 y1 y0 y1 - flash yellows lights 
-	{0, 0,   0, 0,   0, 0},				//  traffic lights off, 
-	{RED|GREEN|YELL0, RED|YELL0,   RED|GREEN|YELL1, GREEN|YELL1,   1, PERIOD_2},		//  PERIOD_2 секунд - горят все красные и зеленые огни, ПРИ СБРОСЕ ИЛИ ПОДАЧЕ ПИТАНИЯ
-	
-	{YELL0|GREEN, YELL0,   YELL1|GREEN, YELL1|GREEN,  1, 0}		// ОШИБКА - часто мигают зеленые и желтые
+ // {DDRB0,				PORTB0,			  	DDRB_flashing,		PORTB_flasinf (if flashing), continous of half-period flashing,   continous id mode runing}
+	{RED|GREEN,			RED,				0,					0,   			0,						PERIOD_0 },	// R G R G
+	{RED,				RED,				RED|GREEN,			RED,   			PERIOD_FLASH_GREEN,		PERIOD_1 },	// R g R g - flash east green
+	{RED|YELL1,			RED|YELL1,			0,					0,  			0,						PERIOD_2 },	// R Y1 R Y1
+	{RED|YELL0|YELL1, 	RED|YELL0|YELL1,	0,					0,   			0, 						PERIOD_3 },	// RY0 Y1 RY0 Y1
+	{RED|GREEN,			GREEN,   			0,					0,   			0, 						PERIOD_4 },	// G R G R
+	{RED|GREEN,			GREEN,   			RED,				0,   	 		PERIOD_FLASH_GREEN,	 	PERIOD_5 },	// g R g R - flash nord green
+	{RED|YELL0,			YELL0,   			0,					0,   			0, 						PERIOD_6 },	// Y0 R Y0 R
+	{RED|YELL0|YELL1, 	YELL0|YELL1,   		0, 					0,   			0, 						PERIOD_7 },	// Y0 RY1 Y0 RY1
+	{YELL0|YELL1,		YELL0|YELL1,		YELL0|YELL1,		0,  			PERIOD_FLASH_YELLOW,	0 		 },	// y0 y1 y0 y1 - flash yellows lights
+	{0, 				0,   				0, 					0,   			0, 						0        },	// traffic lights off,
+	{RED|GREEN|YELL0,	RED|YELL0,			RED|GREEN|YELL1,	GREEN|YELL1,	1,						PERIOD_2 },	// PERIOD_2 секунд - горят все красные и зеленые огни, ПРИ СБРОСЕ ИЛИ ПОДАЧЕ ПИТАНИЯ
+	{YELL0|GREEN,		YELL0,				YELL1|GREEN,		YELL1|GREEN,	1,						0        }	// ОШИБКА - часто мигают зеленые и желтые
 };
 
 volatile uint16_t  globalTimer;	// трачу два байта оперативки из 64 на глобальный таймер
