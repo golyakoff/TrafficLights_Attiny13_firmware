@@ -233,9 +233,11 @@ int main() {
 			// 
 			if(tl_flash_end){
 				tl_flash_end -= MAX_GLOBAL_TIMER_VALUE;		// откатить период мигания, если есть
+				if(!tl_flash_end){ tl_flash_end = 1; }		// не путать активный таймер с признаком "выключено" (0)
 			}
 			if(tl_signal_end){
 				tl_signal_end -= MAX_GLOBAL_TIMER_VALUE;	// // откатить период состояния, если есть
+				if(!tl_signal_end){ tl_signal_end = 1; }	// не путать активный таймер с признаком "выключено" (0)
 			}
 			// setPeriods(currentMode, false); // код на 12 байт меньше, но tl_.._end сбросятся в исходное, будет единичным увеличенным интервалом переключения
 		}
