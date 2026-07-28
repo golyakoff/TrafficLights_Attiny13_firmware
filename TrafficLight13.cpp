@@ -4,28 +4,19 @@
 #include <avr/interrupt.h>	// будет использоваться прерывание
 #include <avr/pgmspace.h>	// Программная память для констант
 
-#ifdef GIMSK	// Если ATtiny13 - 
+#ifdef GIMSK	// Если ATtiny13 -
 #define F_CPU 9600000UL		// компилируется не из ардуино среды, нужна скорость АЛУ
 #define ONE_SECOND	37		// количество переполнений счетчика в 1 секунду
 #define QT_SECOND	9		// четверть секунды
-// GIMSK &= ~_BV(INT0); - запрет прерывания INT0  
-#define DISABLE_EXTERNAL_INT0	GIMSK &= ~(_BV(INT0)); GIFR  &= ~(_BV(INTF0))	//EIMSK/EIFR у атмеги
-//GIMSK |= _BV(INT0) - включить прерывание INT0
-#define ENABLE_EXTERNAL_INT0	GIMSK |= _BV(INT0)	; GIFR  &= ~(_BV(INTF0))
 #else			// мега328 - моя ардуинка нано
 #define F_CPU 16000000UL
 #define ONE_SECOND	64		// количество переполнений счетчика в 1 секунду - см. инициализацию таймера ниже
 #define QT_SECOND	16		// четверть секунды
-// АМ328 INT0 - ножка PD2... тут танцах вокруг единственного порта, малой кровью глубокий сон не забабахать (точнее, энергосбережение допиливать),
-#define DISABLE_EXTERNAL_INT0	EIMSK &= ~(_BV(INT0)); EIFR  &= ~(_BV(INTF0)) 
-// Увы, без эмуляции -  EICRA - ISC00-ISC01 == 00, lo level, EIMSK - INT0, EIFR-INTF0  
-#define ENABLE_EXTERNAL_INT0	EIMSK |= _BV(INT0)	; EIFR  &= ~(_BV(INTF0))
 #endif
 
 #define MAX_GLOBAL_TIMER_VALUE	(USHRT_MAX / 2)		// uint16_t globalTimer - защита от переполнения. 65535 /2 
 // любой период должен быть меньше, чем MAX_GLOBAL_TIMER_VALUE - 1
 #define PERIOD_PRESS_BUTTON_SHORT	QT_SECOND  / 2		// Длительность короткого нажатия на кнопку (меньше - дребезг) - переключение состояний
-#define PERIOD_PRESS_BUTTON_LONG	QT_SECOND  * 4		// Длительность долгого нажатия на кнопку - включение/выключение
 #define PERIOD_FLASH_GREEN			QT_SECOND  * 2		// период мигания зеленым цветом (четверть сек) - перед переключением в желтый
 #define PERIOD_FLASH_YELLOW			ONE_SECOND * 2		// период мигания желтым цветом - регулировка светофором отключена - секунды
 
@@ -68,9 +59,7 @@ typedef struct{
 // номера режимов работы в массиве lightSignalization traffic_signals[]
 #define LIGHT_NUM_YELLOW_FLASH	8		// номер состояния порта при мигании желтым (нерегулирующем сигнале) - включено - flash yellows lights
 #define LIGHT_NUM_STD_START		0		// С какого номера начинается работа стандартного режима (крас-жел-зел)
-#define LIGHT_NUM_LIGHTS_OFF	9		// номер состояния порта всё выключено - в спячке - traffic lights off
-#define LIGHT_NUM_START_SHOW	10		// номер состояния ВКЛЮЧЕНИЯ СВЕТОФОРА ПРИ СБРОСЕ ИЛИ ПОДАЧЕ ПИТАНИЯ
-#define LIGHT_NUM_ERR			11		// отображение ошибки - частое мигание желтого и зеленого
+#define LIGHT_NUM_START_SHOW	9		// номер состояния ВКЛЮЧЕНИЯ СВЕТОФОРА ПРИ СБРОСЕ ИЛИ ПОДАЧЕ ПИТАНИЯ
 
 #define MASK_LIGHT_NUM_STD		7		// текущий_номер_состояния_светофора++ &= LIGHT_NUM_STD_MASK - обеспечивает счетчик от 0 до 7 по кругу 
 
@@ -87,9 +76,7 @@ const lightSignalization traffic_signals[] PROGMEM= {	// Порядок чере
 	{RED|YELL0,			YELL0,   			0,					0,   			0, 						PERIOD_6 },	// Y0 R Y0 R
 	{RED|YELL0|YELL1, 	YELL0|YELL1,   		0, 					0,   			0, 						PERIOD_7 },	// Y0 RY1 Y0 RY1
 	{YELL0|YELL1,		YELL0|YELL1,		YELL0|YELL1,		0,  			PERIOD_FLASH_YELLOW,	0 		 },	// y0 y1 y0 y1 - flash yellows lights
-	{0, 				0,   				0, 					0,   			0, 						0        },	// traffic lights off,
-	{RED|GREEN|YELL0,	RED|YELL0,			RED|GREEN|YELL1,	GREEN|YELL1,	1,						PERIOD_2 },	// PERIOD_2 секунд - горят все красные и зеленые огни, ПРИ СБРОСЕ ИЛИ ПОДАЧЕ ПИТАНИЯ
-	{YELL0|GREEN,		YELL0,				YELL1|GREEN,		YELL1|GREEN,	1,						0        }	// ОШИБКА - часто мигают зеленые и желтые
+	{RED|GREEN|YELL0,	RED|YELL0,			RED|GREEN|YELL1,	GREEN|YELL1,	1,						PERIOD_2 }	// PERIOD_2 секунд - горят все красные и зеленые огни, ПРИ СБРОСЕ ИЛИ ПОДАЧЕ ПИТАНИЯ
 };
 
 volatile uint16_t  globalTimer;	// трачу два байта оперативки из 64 на глобальный таймер
@@ -99,21 +86,7 @@ uint8_t scan_button_cnt;		// один байт счетчик длительно
 uint8_t f_button_state_flags;	// 1б, псевдорегистр машины состояний кнопки и вместилище булевых переменных
 // итого, 8 байт на глобальные переменные
 
-#pragma region bits_of_f_button_state_flags 
-	// состояния машины состояний отслеживания кнопки MODES:  wakeup 11 -> work 00 -> tosleep 01 -> pwrdown 11 -> wakeup 11
-#define MODE_LBIT 0
-#define MODE_HBIT 1
-#define MODE_VALUE			( f_button_state_flags & 3 )	// результат - численное значение MODE_
-#define SET_MODE_WORK		f_button_state_flags &= ~(_BV(MODE_HBIT) );  f_button_state_flags &= ~(_BV(MODE_LBIT) );// 00 - work
-//  f_button_state_flags &= ~( _BV(MODE_HBIT) | _BV(MODE_LBIT) ) - по размеру столько же, что странно
-#define MODE_WORK_VALUE		0
-#define SET_MODE_TOSLEEP	f_button_state_flags &= ~(_BV(MODE_HBIT)); f_button_state_flags |= _BV(MODE_LBIT)	// 01 - tosleep
-#define MODE_TOSLEEP_VALUE	1
-#define SET_MODE_PWRDOWN	f_button_state_flags |= _BV(MODE_HBIT); f_button_state_flags &= ~(_BV(MODE_LBIT))	// 10 - pwrdown	
-#define MODE_PWRDOWN_VALUE	2
-#define SET_MODE_WAKEUP		f_button_state_flags |= _BV(MODE_HBIT); f_button_state_flags |= _BV(MODE_LBIT)		// 11 - wakeup 	
-#define MODE_WAKEUP_VALUE	3
-
+#pragma region bits_of_f_button_state_flags
 #define FORCE_SET_NEW_SIGNAL_BIT		2	// в конце бесконечного цикла установить новый режим работы портов по значению в current_signal
 #define IF_FORCE_SET_SIGNAL_FLAG		( f_button_state_flags & _BV(FORCE_SET_NEW_SIGNAL_BIT) )	// IF_ - в условие проверки флага
 #define SET_FORCE_SET_SIGNAL_FLAG		f_button_state_flags |=  _BV(FORCE_SET_NEW_SIGNAL_BIT)		// SET_ - бит флага в 1
@@ -137,11 +110,6 @@ uint8_t f_button_state_flags;	// 1б, псевдорегистр машины с
 #define IF_SHORT_PRESS_FLAG		( f_button_state_flags & _BV(SHORT_PRESS_FLAG_BIT) )		//условие - если значение == 1
 #define SET_SHORT_PRESS_FLAG	f_button_state_flags |= _BV(SHORT_PRESS_FLAG_BIT)
 #define RES_SHORT_PRESS_FLAG	f_button_state_flags &= ~(_BV(SHORT_PRESS_FLAG_BIT))
-
-#define LONG_PRESS_FLAG_BIT		7 // Булево, 1 когда счетчик нажатия кнопки больше длинного нажатия
-#define IF_LONG_PRESS_FLAG		( f_button_state_flags & _BV(LONG_PRESS_FLAG_BIT) )		//условие - если значение == 1
-#define SET_LONG_PRESS_FLAG		f_button_state_flags |= _BV(LONG_PRESS_FLAG_BIT)
-#define RES_LONG_PRESS_FLAG		f_button_state_flags &= ~(_BV(LONG_PRESS_FLAG_BIT))
 #pragma endregion
 
 
@@ -174,15 +142,6 @@ ISR(TIMER2_OVF_vect){
 	globalTimer++;
 }
 #endif
-// Внешнее прерывание - нажатие на кнопку (точнее, изменение состояния, отслеживать же надо 0)
-ISR(INT0_vect){
-	DISABLE_EXTERNAL_INT0;
-	SET_MODE_WAKEUP;		// прерывание разрешено только во сне POWER DOWN
-	globalTimer = 0;		// проснувшись - сброс таймера
-	scan_button_cnt = 0;	// сброс нажатий кнопки
-	RES_SHORT_PRESS_FLAG;	//
-	RES_LONG_PRESS_FLAG;	// и флагов
-}
 
 /*
 // для отладки - видеть где программма работает
@@ -213,7 +172,6 @@ int main() {
 	init_timer_clock();			// инициализация и запуск глобального таймера
 
 	globalTimer = 0;			// проснувшись - сброс таймера
-	SET_MODE_WORK;				// обработчик состояния нажатия кнопки
 	SET_USE_FIRST_VALUES_LIGHT_FLAG;	//первая пара значений
 	scan_button_cnt = 0;		// обнулить счетчик кнопки
 
@@ -253,9 +211,6 @@ int main() {
 			if(scan_button_cnt > PERIOD_PRESS_BUTTON_SHORT){
 				SET_SHORT_PRESS_FLAG;		// кстати, нажатие уже длиннее короткого нажатия, запомним
 			}
-			if(scan_button_cnt > PERIOD_PRESS_BUTTON_LONG){
-				SET_LONG_PRESS_FLAG;		// и даже длиннее нажатия длинного
-			}
 		}
 #pragma endregion
 #pragma region LightWorkLogic
@@ -284,91 +239,20 @@ int main() {
 		}
 #pragma endregion
 
-#pragma region MODE_VALUELogic
-		// Машина состояний кнопки, 2 бита f_button_state_flags
-		//? MODE_VALUE === pwrdown -> wakeup -> work -> tosleep -> pwrdown
-		switch (MODE_VALUE){
-		case (MODE_WAKEUP_VALUE):
-			set_sleep_mode(SLEEP_MODE_IDLE);		// не спать!
-			// лампы не включать, пока кнопка не нажата достаточно долго - IF_BUTTON_LONG_FLAG
-			if(IF_LONG_PRESS_FLAG){
-				// а не включена ли уже сигнализация? тогда включать свет!
-				if(current_signal == LIGHT_NUM_LIGHTS_OFF){
-					// последний раз перед засыпанием светофор был в режиме желтого мигающего? LIGHT_NUM_ERR
-					current_signal = (IF_LIGHT_SIGNAL_ALT_MODE_FLAG) ? LIGHT_NUM_YELLOW_FLASH : LIGHT_NUM_STD_START;
-					SET_FORCE_SET_SIGNAL_FLAG;		// включить лампы согласно current_signal
-				}
-			}
-			//о, кнопку отжали...
+#pragma region ButtonAction
+		// кнопка нажималась?
+		if(scan_button_cnt > 0){
+			//Кнопку отпустили?
 			if(BUTTON_OFF){
-				// а перед этим жали так долго, что светофор включился
-				if(IF_LONG_PRESS_FLAG){
-					SET_MODE_WORK;
-				}else{	
-					// А не, фальстарт, для включения недожали, спать дальше
-					SET_MODE_PWRDOWN;	// на следующем цикле подготовит режим сна и заснет
+				// нажата была дольше короткого трешхолда? - переключить режим (стандартный <-> мигающий желтый)
+				if(IF_SHORT_PRESS_FLAG){
+					FLIP_LIGHT_SIGNAL_ALT_MODE_FLAG;	// инвертировать флаг режима работы сигнализации
+					current_signal = (IF_LIGHT_SIGNAL_ALT_MODE_FLAG) ? LIGHT_NUM_YELLOW_FLASH : LIGHT_NUM_STD_START; // на начальный номер выбр. режима
+					SET_FORCE_SET_SIGNAL_FLAG;			// флаг установки режима лампы согласно current_signal
 				}
-				scan_button_cnt = 0;	// в любом случае сбросить счетчик длительности нажатий
-				RES_SHORT_PRESS_FLAG;	// и флаги нажатия, конечно
-				RES_LONG_PRESS_FLAG;
+				scan_button_cnt=0;
+				RES_SHORT_PRESS_FLAG; //сброс флага нажатия и счетчика
 			}
-			break;
-
-		case (MODE_WORK_VALUE):
-			// кнопка нажималась?
-			if(scan_button_cnt > 0){
-				// Нажатие оооочень длинное?
-				if(IF_LONG_PRESS_FLAG){
-					current_signal = LIGHT_NUM_LIGHTS_OFF;		// гаси свет
-					SET_FORCE_SET_SIGNAL_FLAG;					// бросай гранату - установить порты "свет выключен"
-					SET_MODE_TOSLEEP;							// команда всем спать!
-				}
-				//Кнопку отпустили? 
-				if(BUTTON_OFF){
-					// нажата была дольше короткого трешхолда?
-					if(IF_SHORT_PRESS_FLAG){
-						FLIP_LIGHT_SIGNAL_ALT_MODE_FLAG;	// инвертировать флаг режима работы сигнализации
-						current_signal = (IF_LIGHT_SIGNAL_ALT_MODE_FLAG) ? LIGHT_NUM_YELLOW_FLASH : LIGHT_NUM_STD_START; // на начальный номер выбр. режима
-						SET_FORCE_SET_SIGNAL_FLAG;			// флаг установки режима лампы согласно current_signal
-					}
-					scan_button_cnt=0;
-					RES_SHORT_PRESS_FLAG; //сброс флагов нажатия и счетчика
-					RES_LONG_PRESS_FLAG;
-				}
-			}
-			break;
-
-		case (MODE_TOSLEEP_VALUE):
-			// Выход из состояния - только по отжатой кнопке.
-			if(BUTTON_OFF){
-				SET_MODE_PWRDOWN;		// На следующем цикле уснет
-			}
-			break;
-
-		case (MODE_PWRDOWN_VALUE):
-			// О! доброе утро, проснулись! Нажата кнопка?
-			if(BUTTON_ON){
-				set_sleep_mode(SLEEP_MODE_IDLE);
-				SET_MODE_WAKEUP;
-			}else{	
-				// Не нажата? Спать дальше.
-				scan_button_cnt = 0;
-				RES_LONG_PRESS_FLAG;
-				RES_SHORT_PRESS_FLAG;
-				current_signal = LIGHT_NUM_LIGHTS_OFF;		//гаси свет
-				SET_FORCE_SET_SIGNAL_FLAG;
-				set_sleep_mode(SLEEP_MODE_PWR_DOWN);	// теперь крепко уснет - в конце while(1)
-				ENABLE_EXTERNAL_INT0;					// разрешить прерывание по нажатию кнопки
-			}
-			break;
-
-		default:
-			//! Что то пошло совсем не так - подать индикацию ошибки сюда. Вообще - невозможное состояние при правильно написанной программе
-			current_signal = LIGHT_NUM_ERR;
-			SET_FORCE_SET_SIGNAL_FLAG;
-			//setPorts(current_signal,true);
-			//setPeriods(current_signal,true);
-			break;
 		}
 #pragma endregion
 

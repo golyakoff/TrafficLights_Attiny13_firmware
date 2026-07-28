@@ -39,6 +39,5 @@ worth checking the size report `build.bat` prints.
 
 A short press of the mode button toggles between the normal cycle and flashing mode.
 
-There's also a not-recommended "sleep" feature, triggered by a long press of the mode
-button. It's recommended to use a separate power switch instead, which fully cuts power
-to the device.
+There used to be a long-press "sleep" feature; it has been removed. Use a separate power
+switch to turn the device off — it fully cuts power, unlike the old software sleep mode.
