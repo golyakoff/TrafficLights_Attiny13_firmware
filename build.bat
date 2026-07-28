@@ -24,8 +24,8 @@ if errorlevel 1 goto error
 @"%AVRBINPATH%\avr-objcopy.exe" -j .text -j .data -O ihex "%OUTDIR%\TrafficLight13.elf" "%OUTDIR%\TrafficLight13.hex"
 if errorlevel 1 goto error
 
-:: Show section sizes (Berkeley format)
-@"%AVRBINPATH%\avr-size.exe" --format=berkeley --mcu=attiny13a "%OUTDIR%\TrafficLight13.elf"
+:: Show section sizes (Berkeley format: text=flash, data+bss=RAM)
+@"%AVRBINPATH%\avr-size.exe" --format=berkeley "%OUTDIR%\TrafficLight13.elf"
 
 echo Build succeeded. HEX file is in %OUTDIR%
 pause
